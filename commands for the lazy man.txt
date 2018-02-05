@@ -1,0 +1,3 @@
+& ".\rcst2csv.exe" "20180109-181030651.rcst"
+
+& ".\ffmpeg\bin\ffmpeg.exe" -i ".\20180109-181030651.h264" -vf trim=62:2189 ".\0651_clean.h264"
