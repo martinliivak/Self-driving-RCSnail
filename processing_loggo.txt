@@ -3,4 +3,3 @@
 0651 - retain 62s : 2189s
 3702 - retain 67s : 1229s
 4501 - retain 27s : 1071s
-3446 - retain 131s : 800s

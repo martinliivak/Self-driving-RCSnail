@@ -8,58 +8,62 @@ import math
 import threading
 
 
-def extract_training_data_as_stacked(filename, csv_filename, image_size=(64, 64, 3)):
+def cut_labels_for_video(video_file, label_file, cut_from_front):
     """
-    Read every 12th frame from input video and bundle every five frames together.
+    If cut_from_front then remove a chunk of labels from the front, otherwise remove it from the back."""
 
-    :param filename:
-    :param csv_filename:
-    :param image_size:
-    :return: images as flattened lists and training labels
+    training_video = cv2.VideoCapture(video_file)
+    if "_clean" in label_file:
+        training_labels = pd.read_csv(label_file, sep="\t")
+    else:
+        training_labels = pd.read_csv(label_file, sep="\t", decimal=",")
+
+    # Unfortunately cap.get(cv2.CAP_PROP_FRAME_COUNT) gave bullshit results
+    video_length = count_frames_manually(training_video)
+    label_length = training_labels.shape[0]
+    diff = label_length - video_length
+
+    print("Video len: " + str(video_length))
+    print("Label len: " + str(label_length))
+
+    if diff <= 0:
+        print("Video is longer than labels. Check your filenames or something.")
+        return
+    print("Dropping " + str(diff) + " lines from labels.")
+
+    if cut_from_front:
+        training_labels.drop(training_labels.index[0:diff], inplace=True)
+    else:
+        training_labels.drop(training_labels.index[-diff:], inplace=True)
+
+    assert video_length == training_labels.shape[0]
+
+    label_filename = label_file.split("/")[-1].split(".")[0]
+
+    if "_clean" in label_filename:
+        training_labels.to_csv("./Data/Preprocessed/" + label_filename + ".csv", sep="\t", index=False)
+    else:
+        training_labels.to_csv("./Data/Preprocessed/" + label_filename + "_clean.csv", sep="\t", index=False)
+
+
+def count_frames_manually(video):
     """
-    cap = cv2.VideoCapture(filename)
-    labels = pd.read_csv(csv_filename, sep="\t")
+    It's a bit slooow, eeeh?"""
+    total = 0
 
-    frame_counter = 0
-    processed_frames = []
-
-    training_images = []
-    training_label_ids = []
     while True:
-        frame_counter += 1
-        result, frame = cap.read()
-        if result and frame_counter % 12 == 0:
-            frame = frame / 255
-            # cv2.imshow("img", frame)
-            resized = cv2.resize(frame, image_size[:2])
-            processed_frames.append(resized)
-            if len(processed_frames) >= 4:
-                # cv2.imshow('frame', resized)
+        result, frame = video.read()
 
-                stacked_image = np.concatenate(processed_frames, axis=2)
-                # training_labels.append(labels[frame_counter])
-                training_images.append(stacked_image)
-                # training_images.append(processed_frames.copy())
-                training_label_ids.append(frame_counter)
-                processed_frames.pop(0)
-
-        if cv2.waitKey(1) & 0xFF == ord('q') or not result:
+        if not result:
             break
 
-    # When everything done, release the capture
-    cap.release()
-    cv2.destroyAllWindows()
-
-    training_images = np.array(training_images)
-    training_labels = labels.loc[training_label_ids]
-
-    assert training_images.shape[0] == training_labels.shape[0]
-    return training_images, training_labels
+        total += 1
+    return total
 
 
 def extract_training_data(filename, csv_filename, image_size=(64, 64, 3)):
     """
-    Read every 12th frame from input video and output them.
+    Read every frame from input video and output them.
 
     :param filename:
     :param csv_filename:
@@ -74,10 +78,11 @@ def extract_training_data(filename, csv_filename, image_size=(64, 64, 3)):
 
     training_images = []
     training_label_ids = []
+
     while True:
         frame_counter += 1
         result, frame = cap.read()
-        if result and frame_counter % 12 == 0:
+        if result and frame_counter % 4 == 0:
             frame = frame / 255
             # cv2.imshow("img", frame)
             resized = cv2.resize(frame, image_size[:2])
